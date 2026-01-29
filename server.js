@@ -1,80 +1,84 @@
-const express = require("express");
-const cors = require("cors");
+import express from "express";
+import mongoose from "mongoose";
+import cors from "cors";
+import dotenv from "dotenv";
 
-const uidRouter = require("./Routers/uid.routes");
-const expenseRoutes = require("./Routers/expenseRoutes");
+import uidRouter from "./Routers/uid.routes.js";
+import expenseRoutes from "./Routers/expenseRoutes.js";
 
-const Container = require("./models/Container");
-const Shipment = require("./models/Shipment");
+import Container from "./models/Container.js";
+import Shipment from "./models/Shipment.js";
+
+dotenv.config();
+
+// const Product = require('./models/Product');
 
 const app = express();
+app.use(cors());
+app.use(express.json());
 
-/* ---------- Middlewares ---------- */
-app.use(cors({ origin: "*", credentials: true }));
-app.use(express.json({ limit: "10mb" }));
-
-/* ---------- Routes ---------- */
 app.use("/api/expenses", expenseRoutes);
-app.use("/api", uidRouter);
+app.use('/api', uidRouter);
 
-/* ---------- Health Check ---------- */
-app.get("/", (req, res) => {
-  res.status(200).json({ status: "API running 🚀" });
-});
 
-/* ---------- Generate Unique ID ---------- */
-app.get("/api/generate-id", (req, res) => {
+
+mongoose.connect(process.env.MONGO_URI);
+
+// 1. Generate Unique ID
+app.get('/api/generate-id', (req, res) => {
   const id = `ID-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
   res.json({ uniqueId: id });
 });
 
-/* ---------- Container ---------- */
-app.post("/api/container", async (req, res) => {
-  try {
-    const container = await Container.create(req.body);
-    res.status(201).json(container);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+// 2. Create Initial Container Record
+app.post('/api/container', async (req, res) => {
+  const container = new Container(req.body);
+  await container.save();
+  res.json(container);
 });
 
-/* ---------- Bulk Shipment ---------- */
-app.post("/api/shipment/bulk", async (req, res) => {
+// 3. Bulk Shipment Assignment
+app.post('/api/shipment/bulk', async (req, res) => {
   try {
     const { containers, ...shipmentData } = req.body;
 
-    const shipment = await Shipment.create({
-      ...shipmentData,
-      containerIds: containers.map(c => c.uniqueId),
-      containerNumber: containers.map(c => c.containerNumber),
+    // 1. Save the Shipment first
+    const shipment = new Shipment({ 
+       ...shipmentData, 
+       containerIds: containers.map(c => c.uniqueId), // Store IDs for quick reference
+       containerNumber: containers.map(c => c.containerNumber) // Store Container Numbers
+    });
+    const savedShipment = await shipment.save();
+
+    // 2. Process the Containers
+    // We use Promise.all to handle multiple async operations efficiently
+    const containerOperations = containers.map(c => {
+      return Container.findOneAndUpdate(
+        { uniqueId: c.uniqueId }, // Find by Unique ID
+        { 
+          $set: { 
+            containerNumber: c.containerNumber,
+            sealNumber1: c.seal1,
+            sealNumber2: c.seal2,
+            status: 'Assigned',
+            shipment_ref: savedShipment._id // <--- THIS LINKS THEM
+            
+          } 
+        },
+        { upsert: true, new: true } // Create if doesn't exist, update if it does
+      );
     });
 
-    await Promise.all(
-      containers.map(c =>
-        Container.findOneAndUpdate(
-          { uniqueId: c.uniqueId },
-          {
-            $set: {
-              containerNumber: c.containerNumber,
-              sealNumber1: c.seal1,
-              sealNumber2: c.seal2,
-              status: "Assigned",
-              shipment_ref: shipment._id,
-            },
-          },
-          { upsert: true, new: true }
-        )
-      )
-    );
+    await Promise.all(containerOperations);
 
-    res.json({ success: true, shipment });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.json({ success: true, shipment: savedShipment });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
-/* ---------- Update Seal ---------- */
-app.patch("/api/container/:uniqueId/seal2", async (req, res) => {
+// 4. Update Seal Number 2 (Post-Inspection)
+app.patch('/api/container/:uniqueId/seal2', async (req, res) => {
   const container = await Container.findOneAndUpdate(
     { uniqueId: req.params.uniqueId },
     { sealNumber2: req.body.sealNumber2 },
@@ -83,30 +87,75 @@ app.patch("/api/container/:uniqueId/seal2", async (req, res) => {
   res.json(container);
 });
 
-/* ---------- Fetch ---------- */
-app.get("/api/containers/pending", async (req, res) => {
-  res.json(await Container.find({ status: "Pending" }));
+app.get('/api/containers/pending', async (req, res) => {
+  const containers = await Container.find({ status: 'Pending' });
+  res.json(containers);
 });
 
-app.get("/api/container/all", async (req, res) => {
-  res.json(await Container.find().sort({ createdAt: -1 }));
+// GET All Shipments
+app.get('/api/shipment/all', async (req, res) => {
+  try {
+    // We fetch all shipments and sort by newest first
+    const shipments = await Shipment.find().sort({ createdAt: -1 });
+    
+    // Send the data to the frontend
+    res.status(200).json(shipments);
+  } catch (err) {
+    console.error("Error fetching shipments:", err);
+    res.status(500).json({ 
+      message: "Server error while fetching shipments", 
+      error: err.message 
+    });
+  }
+});
+app.get('/api/container/all', async (req, res) => {
+  try {
+    // We fetch all shipments and sort by newest first
+    const container = await Container.find().sort({ createdAt: -1 });
+    
+    // Send the data to the frontend
+    res.status(200).json(container);
+  } catch (err) {
+    console.error("Error fetching shipments:", err);
+    res.status(500).json({ 
+      message: "Server error while fetching shipments", 
+      error: err.message 
+    });
+  }
 });
 
-app.get("/api/shipment/all", async (req, res) => {
-  res.json(await Shipment.find().sort({ createdAt: -1 }));
-});
-
-/* ---------- Update Shipment ---------- */
 app.put("/api/shipment/update/:id", async (req, res) => {
-  const updated = await Shipment.findByIdAndUpdate(req.params.id, req.body, { new: true });
-  res.json(updated);
+  try {
+    const updated = await Shipment.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+    res.status(200).json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-/* ---------- Delete Shipment ---------- */
+
 app.delete("/api/shipment/delete/:id", async (req, res) => {
-  await Shipment.findByIdAndDelete(req.params.id);
-  await Container.deleteMany({ shipment_ref: req.params.id });
-  res.json({ message: "Shipment deleted" });
+  try {
+    await Shipment.findByIdAndDelete(req.params.id);
+    res.status(200).json({ message: "Shipment deleted" });
+    await Container.findByIdAndDelete({ shipment_ref: req.params.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-module.exports = app;
+
+
+// ✅ Start server only in local mode
+if (process.env.NODE_ENV !== "production") {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`✅ Server running locally at http://localhost:${PORT}`);
+  });
+}
+
+export default app;
