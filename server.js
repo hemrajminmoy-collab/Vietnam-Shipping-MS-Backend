@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 
-import uidRouter from "./Routers/uid.routes.js";
+import uidRouter from "./Routers/uid.Routes.js";
 import expenseRoutes from "./Routers/expenseRoutes.js";
 
 import Container from "./models/Container.js";
