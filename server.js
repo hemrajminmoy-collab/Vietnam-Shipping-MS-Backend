@@ -1,7 +1,6 @@
 import express from "express";
-import mongoose from "mongoose";
 import cors from "cors";
-import dotenv from "dotenv";
+import compression from "compression";
 
 import uidRouter from "./Routers/uid.Routes.js";
 import expenseRoutes from "./Routers/expenseRoutes.js";
@@ -9,20 +8,23 @@ import expenseRoutes from "./Routers/expenseRoutes.js";
 import Container from "./models/Container.js";
 import Shipment from "./models/Shipment.js";
 
-dotenv.config();
-
-// const Product = require('./models/Product');
-
 const app = express();
-app.use(cors());
-app.use(express.json());
 
+/* ---------- PERFORMANCE ---------- */
+app.disable("x-powered-by");          // Security + tiny speed boost
+app.use(compression());               // 🔥 Compress responses
+app.use(cors({ origin: "*"}));
+app.use(express.json({ limit: "5mb" }));
+
+/* ---------- ROUTES ---------- */
 app.use("/api/expenses", expenseRoutes);
-app.use('/api', uidRouter);
+app.use("/api", uidRouter);
 
+/* ---------- HEALTH ---------- */
+app.get("/", (req, res) => {
+  res.json({ status: "API running 🚀" });
+});
 
-
-mongoose.connect(process.env.MONGO_URI);
 
 // 1. Generate Unique ID
 app.get('/api/generate-id', (req, res) => {
@@ -96,7 +98,10 @@ app.get('/api/containers/pending', async (req, res) => {
 app.get('/api/shipment/all', async (req, res) => {
   try {
     // We fetch all shipments and sort by newest first
-    const shipments = await Shipment.find().sort({ createdAt: -1 });
+const shipments = await Shipment.find()
+  .sort({ createdAt: -1 })
+  .lean();
+
     
     // Send the data to the frontend
     res.status(200).json(shipments);
@@ -142,7 +147,8 @@ app.delete("/api/shipment/delete/:id", async (req, res) => {
   try {
     await Shipment.findByIdAndDelete(req.params.id);
     res.status(200).json({ message: "Shipment deleted" });
-    await Container.findByIdAndDelete({ shipment_ref: req.params.id });
+await Container.deleteMany({ shipment_ref: req.params.id });
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
