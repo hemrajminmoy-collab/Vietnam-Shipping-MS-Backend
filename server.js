@@ -42,7 +42,11 @@ app.post('/api/container', async (req, res) => {
 // 3. Bulk Shipment Assignment
 app.post('/api/shipment/bulk', async (req, res) => {
   try {
+        console.log("REQ BODY countryOfOrigin 👉", req.body.countryOfOrigin);
+
     const { containers, ...shipmentData } = req.body;
+
+    console.log("shipmentData.countryOfOrigin 👉", shipmentData.countryOfOrigin);
 
     // 1. Save the Shipment first
     const shipment = new Shipment({ 

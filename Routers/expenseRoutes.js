@@ -1,7 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const Expense = require("../models/Expense");
-const { createBulkExpense: bulkCreateExpenses } = require("../Controller/createBulkExpense ");
+const { 
+  createBulkExpense: bulkCreateExpenses ,
+} = require("../Controller/createBulkExpense");
+
+const { getExpensesWithInvoice } = require("../Controller/expense.controller");
 
 /**
  * CREATE expense
@@ -29,6 +33,7 @@ router.post("/create", async (req, res) => {
 });
 
 router.post("/bulk-create", bulkCreateExpenses);
+router.get("/with-invoice", getExpensesWithInvoice);
 
 router.get("/all", async (req, res) => {
   try {
