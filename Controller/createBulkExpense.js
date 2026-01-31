@@ -2,13 +2,18 @@ const Expense = require("../models/Expense");
 
 exports.createBulkExpense = async (req, res) => {
   try {
-    const { containerNumbers, expenseDate, remarks, costs } = req.body;
+    const { invoiceNumber, containerNumbers, expenseDate, remarks, costs } = req.body;
 
     if (!containerNumbers || containerNumbers.length === 0) {
       return res.status(400).json({ error: "No containers selected" });
     }
 
+    if (!invoiceNumber) {
+      return res.status(400).json({ error: "Invoice number is required" });
+    }
+
     const expense = await Expense.create({
+      invoiceNumber,           // ✅ from frontend form
       containerNumbers,        // ✅ array stored ONCE
       expenseDate,
       remarks,

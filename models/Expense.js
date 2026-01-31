@@ -16,13 +16,10 @@ const costItemSchema = new mongoose.Schema(
 
 const expenseSchema = new mongoose.Schema(
   {
-    // uniqueId: [
-    //   {
-    //     type: String,
-    //     required: true,
-    //     index: true,
-    //   },
-    // ],
+    invoiceNumber: {
+      type: String,
+      index: true,
+    },
     containerNumbers: {
       type: [String], // ✅ ARRAY
       required: true,

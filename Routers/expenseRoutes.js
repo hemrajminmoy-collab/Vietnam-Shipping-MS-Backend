@@ -60,4 +60,49 @@ router.get("/:uniqueId", async (req, res) => {
   }
 });
 
+/**
+ * UPDATE expense by ID
+ */
+router.put("/:id", async (req, res) => {
+  try {
+    const { invoiceNumber, expenseDate, remarks, costs } = req.body;
+
+    const expense = await Expense.findByIdAndUpdate(
+      req.params.id,
+      {
+        invoiceNumber,
+        expenseDate,
+        remarks,
+        costs,
+      },
+      { new: true }
+    );
+
+    if (!expense) {
+      return res.status(404).json({ error: "Expense not found" });
+    }
+
+    res.json(expense);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * DELETE expense by ID
+ */
+router.delete("/:id", async (req, res) => {
+  try {
+    const expense = await Expense.findByIdAndDelete(req.params.id);
+
+    if (!expense) {
+      return res.status(404).json({ error: "Expense not found" });
+    }
+
+    res.json({ message: "Expense deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
