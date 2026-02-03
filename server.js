@@ -1,9 +1,13 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import compression from "compression";
 
 import uidRouter from "./Routers/uid.Routes.js";
 import expenseRoutes from "./Routers/expenseRoutes.js";
+import warehouseRoutes from "./Routers/warehouseRoutes.js";
+import customerRoutes from "./Routers/customerRoutes.js";
+import connectDB from "./config/db.js";
 
 import Container from "./models/Container.js";
 import Shipment from "./models/Shipment.js";
@@ -19,6 +23,8 @@ app.use(express.json({ limit: "5mb" }));
 /* ---------- ROUTES ---------- */
 app.use("/api/expenses", expenseRoutes);
 app.use("/api", uidRouter);
+app.use("/api/warehouse", warehouseRoutes);
+app.use("/api/customer", customerRoutes);
 
 /* ---------- HEALTH ---------- */
 app.get("/", (req, res) => {
@@ -160,12 +166,19 @@ await Container.deleteMany({ shipment_ref: req.params.id });
 
 
 
-// ✅ Start server only in local mode
+// ✅ Start server only in local mode — ensure DB connection first
 if (process.env.NODE_ENV !== "production") {
   const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => {
-    console.log(`✅ Server running locally at http://localhost:${PORT}`);
-  });
+  connectDB()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`✅ Server running locally at http://localhost:${PORT}`);
+      });
+    })
+    .catch((err) => {
+      console.error("Failed to connect to MongoDB, exiting:", err);
+      process.exit(1);
+    });
 }
 
 export default app;

@@ -22,7 +22,6 @@ const ShipmentSchema = new mongoose.Schema(
     netWeight: Number,
     noOfBags: Number,
     shippingLine: String,
-    countryOfOrigin: String,
     goodsName: String,
     arrivalPort: String,
     eta: Date,
